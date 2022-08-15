@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"log"
@@ -7,16 +7,17 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func main() {
-	http.HandleFunc("/", handler)
-	http.ListenAndServe(":8080", nil)
-}
-
 var connexions = make(map[string]*websocket.Conn)
+var count = ""
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
+}
+
+func main() {
+	http.HandleFunc("/message", handler)
+	http.ListenAndServe(":8080", nil)
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -25,17 +26,26 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	connexions["usuario1"] = conn
 	defer conn.Close()
-	defer delete(connexions, "usuario1")
+	count = count + "1"
+	id := count
+	connexions[id] = conn
+	defer delete(connexions, id)
 
-	cw, err2 := conn.NextWriter(websocket.TextMessage)
-	defer cw.Close()
-	if err2 != nil {
-		log.Println(err2)
-		return
+	for {
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for _, value := range connexions {
+			if value != conn {
+				err2 := value.WriteMessage(websocket.TextMessage, message)
+				if err2 != nil {
+					log.Println(err2)
+					return
+				}
+			}
+		}
 	}
-
-	cw.Write("")
-
 }
